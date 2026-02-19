@@ -93,3 +93,60 @@ Los conceptos clave incluyen **Mono y Flux**, **operadores de Reactor**, **manej
 
 ---
 
+
+## 11. Flujo de tiempo y retrasos
+
+- `Flux.interval(Duration.ofSeconds(1))`: genera emisiones periódicas.
+- `take(n)`: limita el número de emisiones.
+- `doOnNext`: permite logging de cada elemento emitido.
+- `doOnComplete`: permite logging al finalizar.
+
+---
+
+## 12. WebSockets en Spring WebFlux
+
+### **Componentes clave**
+1. **WebSocketHandler**
+    - Define la lógica de manejo de mensajes entrantes y salientes.
+    - Ejemplo: transmitir temperaturas cada segundo.
+2. **HandlerMapping**
+    - Asocia URLs de WebSocket con su handler.
+    - Ejemplo: `/ws/temperature` → `TemperatureWebSocketHandler`.
+3. **WebSocketHandlerAdapter**
+    - Permite a Spring WebFlux aceptar y procesar conexiones WebSocket.
+    - Traduce el handshake a un `WebSocketSession` reactivo.
+
+### **Flujo completo**
+- Netty recibe el handshake WebSocket.
+- WebSocketHandlerAdapter traduce la conexión.
+- HandlerMapping encuentra el handler correspondiente.
+- WebSocketHandler maneja la comunicación bidireccional usando `Flux` y `Mono`.
+
+---
+
+
+## 13. Glosario rápido
+
+| Concepto | Descripción |
+|----------|------------|
+| Mono | Flujo de 0 o 1 elemento |
+| Flux | Flujo de 0 o N elementos |
+| map | Transformación de elementos |
+| flatMap | Transformación y aplanado de flujos internos |
+| then | Ignora valor previo, devuelve Mono de finalización |
+| zip | Combina flujos par a par |
+| merge | Combina flujos concurrentemente |
+| concat | Combina flujos secuencialmente |
+| onErrorResume | Reemplaza un error por un valor alternativo |
+| onErrorContinue | Ignora un error y continúa |
+| switchIfEmpty | Flujo alternativo si no hay elementos |
+| limitRate | Control de backpressure |
+| subscribeOn | Define hilo inicial del flujo |
+| publishOn | Cambia hilo a mitad del flujo |
+| boundedElastic | Scheduler para I/O bloqueante |
+| parallel | Scheduler para operaciones CPU-bound |
+| WebSocketHandler | Define lógica de WebSocket |
+| HandlerMapping | Asocia URL con handler |
+| WebSocketHandlerAdapter | Adaptador para manejar WebSocket con Netty |
+
+---

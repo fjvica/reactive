@@ -1,48 +1,95 @@
-# Spring WebFlux - Ejemplo Reactivo
+# Proyecto Reactivo con Spring Boot – Glosario
 
-Proyecto de ejemplo para aprender WebFlux + Reactor.
+## 1. Introducción
 
-## Requisitos
-- JDK 17+
-- Maven
-- MongoDB (opcional, si usas la configuracion por defecto)
-
-## Ejecutar
-1. Inicia MongoDB local en puerto 27017 (o ajusta application.yml)
-2. Ejecuta:
-   ```bash
-   mvn spring-boot:run 
-3. Probar endpoints: curl http://localhost:8080/hello
-   curl -s http://localhost:8080/users | jq
-
-Conceptos a estudiar junto al codigo
-Diferencia Mono vs Flux
-
-Operadores: map, flatMap, filter, zip, merge
-
-Manejo de errores: onErrorResume, onErrorReturn
-
-Backpressure
-
-Pruebas con reactor-test
+Este proyecto utiliza **Spring Boot WebFlux** para construir aplicaciones **reactivas**, que permiten procesar datos de manera asincrónica y no bloqueante.  
+La programación reactiva es útil para aplicaciones que manejan **muchas conexiones concurrentes**, streams de datos continuos, o tareas de IO intensivas sin saturar el servidor.  
+Los conceptos clave incluyen **Mono y Flux**, **operadores de Reactor**, **manejo de hilos** y técnicas avanzadas de flujo de datos.
 
 ---
 
-## Comentarios didacticos (puntos clave dentro del codigo)
+## 2. Conceptos básicos de programación reactiva
 
-- Todos los repositorios y servicios devuelven `Mono` o `Flux`: esto permite encadenar transformaciones
-  sin bloquear hilos.
-- `Flux` es una secuencia: ideal para listar elementos. `Mono` es 0..1: ideal para operaciones por id o resultados unicos.
-- Las llamadas a BD reactiva NO ejecutan nada hasta que haya un `subscribe` por parte del framework o de pruebas.
-- En controladores WebFlux, Spring se encarga de suscribirse y gestionar el ciclo de vida de la respuesta HTTP.
-- Evitar en la medida de lo posible `block()` en codigo de produccion: `block()` rompe el modelo no bloqueante.
+- **Flux**: representa un flujo que puede emitir **cero, uno o muchos elementos** de manera asincrónica. Es ideal para listas, streams de eventos o colecciones de datos que llegan progresivamente.
+- **Mono**: representa un flujo que puede emitir **cero o un elemento**. Es útil para operaciones que devuelven un único resultado, como obtener un registro por ID o una respuesta de un servicio externo.
+- **Operadores**: métodos que permiten **transformar, filtrar, combinar o reaccionar** a los elementos de un flujo sin bloquear el hilo. Permiten componer lógica compleja de manera declarativa y funcional.
 
 ---
 
-## Siguientes pasos (sugeridos)
+## 3. Operadores comunes
 
-1. Ejecutar el proyecto y probar los endpoints con `curl` o Postman.
-2. Añadir ejemplos de operadores en el servicio: por ejemplo usar `flatMap` para validar o enriquecer datos antes de guardar.
-3. Escribir tests unitarios con `reactor-test` para verificar flujos asinc.
-4. Reemplazar Mongo por R2DBC 
+- **map()**: transforma cada elemento del flujo de forma independiente, aplicando una función a cada valor. No altera la cantidad de elementos, solo los transforma.
+- **flatMap()**: transforma cada elemento a un **nuevo flujo** (Mono o Flux) y luego los aplana en un solo flujo continuo. Es clave cuando una operación devuelve un flujo interno.
+- **filter()**: filtra elementos según una condición, descartando los que no cumplen el criterio.
+- **then()**: ignora el valor de los elementos previos y devuelve un Mono vacío o el resultado de un flujo alternativo.
+- **switchIfEmpty()**: define un flujo alternativo si el flujo original está vacío, útil para fallback o valores por defecto.
+- **doOnNext() / doOnSuccess() / doOnComplete() / doFinally()**: permiten ejecutar efectos secundarios o logging en distintos puntos del flujo sin alterar los datos.
+
+---
+
+## 4. Operadores avanzados
+
+- **zip()**: combina elementos de dos o más flujos de manera **paralela**, tomando un elemento de cada flujo y uniéndolos en un solo valor.
+- **merge()**: combina múltiples flujos de forma **asincrónica y concurrente**, sin esperar que uno termine antes que otro.
+- **concat()**: combina flujos de manera **secuencial**, esperando que un flujo termine antes de iniciar el siguiente.
+- **onErrorResume() / onErrorReturn() / onErrorContinue()**: operadores para **manejo de errores** dentro del flujo, permitiendo capturar excepciones y continuar la ejecución o proporcionar valores alternativos.
+- **buffer() / window()**: agrupa elementos en **listas o ventanas temporales**, útil para procesar lotes o ventanas de tiempo.
+- **delayElements() / delaySequence()**: introduce **retrazos entre emisiones**, permitiendo simular tiempos de espera o diferir la emisión de eventos.
+- **take() / takeUntil() / takeWhile()**: limita la cantidad de elementos emitidos según un número, condición o predicado.
+- **skip() / skipUntil()**: ignora elementos al inicio del flujo hasta cumplir una condición o cantidad.
+- **distinct() / distinctUntilChanged()**: elimina elementos duplicados, ya sea en todo el flujo o solo consecutivos.
+
+---
+
+## 5. Backpressure y control de flujo
+
+- **limitRate(n)**: controla la **cantidad de elementos solicitados a la vez**, evitando saturar al consumidor o al sistema. Es esencial en flujos grandes o infinitos.
+- **publishOn(Scheduler)**: cambia el hilo de ejecución a partir de un punto específico del flujo. Todos los operadores que siguen se ejecutan en el Scheduler indicado.
+- **subscribeOn(Scheduler)**: define el hilo en el que se inicia la suscripción y la generación de datos de la fuente. Afecta a todo el flujo desde el inicio.
+
+---
+
+## 6. Schedulers en Reactor
+
+- **immediate()**: ejecuta el flujo en el mismo hilo de suscripción, sin crear hilos adicionales. Adecuado para operaciones muy ligeras o testing.
+- **single()**: crea un **único hilo compartido** para flujos que deben ejecutarse de manera secuencial y no paralela.
+- **parallel()**: pool de hilos optimizado para **procesamiento intensivo de CPU**, con tamaño igual al número de núcleos disponibles. Ideal para map/filter pesados.
+- **boundedElastic()**: pool elástico limitado, ideal para operaciones de **IO bloqueante**, como llamadas a bases de datos o servicios externos. Ajusta el número de hilos según demanda pero mantiene un límite seguro.
+- **newSingle()**: crea un hilo dedicado exclusivo para un flujo, útil cuando se necesita secuencialidad absoluta.
+- **fromExecutor(Executor)**: permite usar un `ExecutorService` personalizado como Scheduler, dando control total sobre tamaño de pool, prioridad y manejo de hilos.
+
+---
+
+## 7. Streams de tiempo y eventos
+
+- **Flux.interval(Duration)**: genera un flujo de números secuenciales cada intervalo de tiempo definido, simulando **ticks o eventos periódicos**.
+- **take(n)**: limita las emisiones para flujos que podrían ser infinitos, útil para tests o demos.
+- **Server-Sent Events (SSE)**: mecanismo para enviar un flujo continuo de datos a clientes HTTP de manera reactiva, muy útil en aplicaciones en tiempo real.
+
+---
+
+## 8. Integración con servicios y bases de datos
+
+- **WebClient**: cliente HTTP **reactivo**, capaz de consumir APIs externas sin bloquear hilos.
+- **R2DBC**: driver reactivo para bases de datos SQL, que permite devolver Mono/Flux directamente y trabajar de manera no bloqueante.
+- **Repositories reactivos**: permiten que los métodos del repositorio devuelvan directamente Mono o Flux, integrando la base de datos en el flujo reactivo.
+
+---
+
+## 9. Testing reactivo
+
+- **StepVerifier**: herramienta para verificar que Mono o Flux **emite los valores esperados**, se completa correctamente y maneja errores como se espera.
+- Permite testear operadores, manejo de errores, límites de flujo y backpressure de manera **no bloqueante**, asegurando el comportamiento reactivo.
+
+---
+
+## 10. Buenas prácticas
+
+- **Nunca bloquear hilos** en flujos reactivos (evitar llamadas sincrónicas o Thread.sleep()).
+- **Separar operaciones de CPU y IO** usando los Schedulers adecuados.
+- **Manejo de errores** con operadores reactivos (`onErrorResume`, `onErrorContinue`) en lugar de try/catch tradicionales.
+- **Evitar flujos infinitos sin límites o control de backpressure**, para no saturar la aplicación o la JVM.
+- **Logging y debugging**: usar `doOnNext`, `doOnComplete`, `doFinally` para inspeccionar el flujo y detectar problemas de concurrencia.
+
+---
 

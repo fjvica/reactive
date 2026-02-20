@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: reactive
+
+server:
+  port: 8080
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html        # URL de acceso simplificada
+    operations-sorter: method     # Ordena los endpoints por metodo
+    tags-sorter: alpha            # Orden alfabetico de tags
+    try-it-out-enabled: true      # Permite probar los endpoints
+    filter: true                  # Activa el buscador
+  packages-to-scan: com.example.demo.controller
+  paths-to-match: /**             # Documenta todos los endpoints
+
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO

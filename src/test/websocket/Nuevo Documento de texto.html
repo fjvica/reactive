@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Test WebSocket</title>
+</head>
+<body>
+  <h2>Temperatura en tiempo real</h2>
+  <pre id="output"></pre>
+
+  <script>
+    const output = document.getElementById("output");
+    const socket = new WebSocket("ws://127.0.0.1:8080/ws/temperature");
+
+    socket.onopen = () => {
+      output.textContent += "✅ Conectado al servidor\n";
+      socket.send("iniciar");
+    };
+
+    socket.onmessage = (event) => {
+      output.textContent += "📡 " + event.data + "\n";
+    };
+
+    socket.onerror = (e) => {
+      output.textContent += "❌ Error de conexión\n";
+      console.error(e);
+    };
+  </script>
+</body>
+</html>

@@ -1,152 +1,237 @@
-# Proyecto Reactivo con Spring Boot – Glosario
+# Proyecto Reactivo con Spring Boot – Glosario (Completo)
 
 ## 1. Introducción
 
-Este proyecto utiliza **Spring Boot WebFlux** para construir aplicaciones **reactivas**, que permiten procesar datos de manera asincrónica y no bloqueante.  
-La programación reactiva es útil para aplicaciones que manejan **muchas conexiones concurrentes**, streams de datos continuos, o tareas de IO intensivas sin saturar el servidor.  
-Los conceptos clave incluyen **Mono y Flux**, **operadores de Reactor**, **manejo de hilos** y técnicas avanzadas de flujo de datos.
+Este proyecto utiliza **Spring Boot WebFlux** para construir aplicaciones **reactivas**, es decir sistemas que procesan datos de manera asincrónica y no bloqueante. La programación reactiva está diseñada para aplicaciones que necesitan manejar **muchas conexiones concurrentes**, procesar **streams de datos continuos** (sensores, logs, eventos) o ejecutar operaciones de I/O intensivas sin saturar el servidor ni su pool de hilos.
+
+Los conceptos de base son **`Mono`** y **`Flux`** (tipos reactivas), una colección de **operadores** para transformar y combinar flujos, **mecanismos de control de hilos** (`Schedulers`) y patrones de resiliencia y backpressure. Además del servidor reactivo, se considera la integración con clientes HTTP reactivas, bases de datos reactivos y sistemas de mensajería reactivos (Kafka).
 
 ---
 
 ## 2. Conceptos básicos de programación reactiva
 
-- **Flux**: representa un flujo que puede emitir **cero, uno o muchos elementos** de manera asincrónica. Es ideal para listas, streams de eventos o colecciones de datos que llegan progresivamente.
-- **Mono**: representa un flujo que puede emitir **cero o un elemento**. Es útil para operaciones que devuelven un único resultado, como obtener un registro por ID o una respuesta de un servicio externo.
-- **Operadores**: métodos que permiten **transformar, filtrar, combinar o reaccionar** a los elementos de un flujo sin bloquear el hilo. Permiten componer lógica compleja de manera declarativa y funcional.
+- **Flux**: representa un flujo que puede emitir **0..N elementos** a lo largo del tiempo. Es adecuado para colecciones reactivas, streams de eventos, respuestas paginadas y emisiones periódicas. Un `Flux` puede completar, puede emitir errores, y puede ser infinito si no se aplica un límite.
+
+- **Mono**: representa un flujo que puede emitir **0..1 elemento**. Ideal para operaciones unitarias: obtener un registro por ID, crear un recurso y recibir su representación, o realizar una llamada HTTP que devuelve un único objeto.
+
+- **Operadores**: funciones que transforman, combinan, filtran o reaccionan a los elementos del flujo sin bloquear. Se componen de forma declarativa para construir pipelines. Los operadores no ejecutan hasta que exista una suscripción (modelo lazy).
+
+- **Publisher / Subscriber / Subscription**: términos de la especificación Reactive Streams. `Publisher` emite (ej. `Flux`), `Subscriber` consume, y `Subscription` controla la demanda (cuántos elementos solicitar), lo que permite controlar backpressure.
 
 ---
 
 ## 3. Operadores comunes
 
-- **map()**: transforma cada elemento del flujo de forma independiente, aplicando una función a cada valor. No altera la cantidad de elementos, solo los transforma.
-- **flatMap()**: transforma cada elemento a un **nuevo flujo** (Mono o Flux) y luego los aplana en un solo flujo continuo. Es clave cuando una operación devuelve un flujo interno.
-- **filter()**: filtra elementos según una condición, descartando los que no cumplen el criterio.
-- **then()**: ignora el valor de los elementos previos y devuelve un Mono vacío o el resultado de un flujo alternativo.
-- **switchIfEmpty()**: define un flujo alternativo si el flujo original está vacío, útil para fallback o valores por defecto.
-- **doOnNext() / doOnSuccess() / doOnComplete() / doFinally()**: permiten ejecutar efectos secundarios o logging en distintos puntos del flujo sin alterar los datos.
+- **map()**: transforma cada elemento aplicando una función puramente transformadora. Mantiene el 1:1 de elementos. Uso: limpieza de datos, proyección, conversiones sencillas.
+
+- **flatMap()**: transforma cada elemento en un `Publisher` (Mono o Flux) y aplana el resultado en un solo flujo. Uso: cuando cada elemento requiere una operación asíncrona que devuelve un flujo (p. ej. llamada a API / BD por elemento). Permite concurrencia por defecto.
+
+- **filter()**: descarta elementos que no cumplan la condición. Útil para validar o filtrar datos en pipelines.
+
+- **then()**: ignora el valor previo y retorna un `Mono` que representa la finalización del flujo anterior o un flujo alternativo. Uso frecuente en operaciones donde solo importa la ejecución (p. ej. eliminar un recurso y devolver `Mono<Void>`).
+
+- **switchIfEmpty()**: si el flujo fuente no emite (está vacío), devuelve un flujo alternativo. Útil para fallback o para ofrecer un valor por defecto cuando no hay resultados.
+
+- **doOnNext(), doOnSuccess(), doOnComplete(), doFinally()**: hooks para efectos secundarios y logging sin alterar los datos. `doFinally()` se ejecuta siempre, independientemente de la señal final (onComplete, onError, cancel).
 
 ---
 
 ## 4. Operadores avanzados
 
-- **zip()**: combina elementos de dos o más flujos de manera **paralela**, tomando un elemento de cada flujo y uniéndolos en un solo valor.
-- **merge()**: combina múltiples flujos de forma **asincrónica y concurrente**, sin esperar que uno termine antes que otro.
-- **concat()**: combina flujos de manera **secuencial**, esperando que un flujo termine antes de iniciar el siguiente.
-- **onErrorResume() / onErrorReturn() / onErrorContinue()**: operadores para **manejo de errores** dentro del flujo, permitiendo capturar excepciones y continuar la ejecución o proporcionar valores alternativos.
-- **buffer() / window()**: agrupa elementos en **listas o ventanas temporales**, útil para procesar lotes o ventanas de tiempo.
-- **delayElements() / delaySequence()**: introduce **retrazos entre emisiones**, permitiendo simular tiempos de espera o diferir la emisión de eventos.
-- **take() / takeUntil() / takeWhile()**: limita la cantidad de elementos emitidos según un número, condición o predicado.
-- **skip() / skipUntil()**: ignora elementos al inicio del flujo hasta cumplir una condición o cantidad.
-- **distinct() / distinctUntilChanged()**: elimina elementos duplicados, ya sea en todo el flujo o solo consecutivos.
+- **zip()**: combina elementos de múltiples flujos en tuplas (o transforma con combinador) de forma sincrónica por índice: el resultado se produce cuando todos los flujos han producido el elemento correspondiente. El tamaño del resultado está limitado por el flujo más corto.
+
+- **merge()**: mezcla flujos de forma concurrente y emite cada elemento tan pronto como llega. No garantiza orden entre flujos.
+
+- **concat()**: concatena flujos secuencialmente. Termina un flujo y luego comienza el siguiente. Garantiza orden estricto entre flujos.
+
+- **combineLatest()**: emite cada vez que cualquiera de los flujos emite, combinando los últimos valores conocidos de cada flujo. Útil cuando varias fuentes representan estados independientes y quieres resultados combinados reactivos.
+
+- **withLatestFrom()**: emite solo cuando el flujo principal emite, incorporando el último valor de los flujos secundarios. Útil cuando existe un trigger principal (p. ej. pulsación de usuario) y se quiere enriquecer con el último estado.
+
+- **amb() / firstWithSignal()**: toma solo el flujo que emite primero y descarta los demás. Útil para redundancia o elegir la respuesta más rápida.
+
+- **reduce()**: acumula todos los elementos y produce un único resultado al finalizar (similar a `collect`), emite solo al final.
+
+- **scan()**: acumula y emite el estado intermedio tras cada elemento. Útil para contadores acumulativos o visualización de progreso.
+
+- **buffer() / window()**: agrupa elementos en listas (buffer) o ventanas (window) por tamaño o tiempo. Aplicable para procesar lotes o ventanas temporales.
+
+- **delayElements() / delaySequence()**: introduce retardos entre emisiones (simulación de tiempo o throttle).
+
+- **take() / takeUntil() / takeWhile()**: controlan cuánto emitir: por número o por condición de corte.
+
+- **skip() / skipUntil()**: ignoran elementos iniciales hasta cierta condición.
+
+- **distinct() / distinctUntilChanged()**: eliminan duplicados globales o consecutivos.
+
+- **onErrorResume() / onErrorReturn() / onErrorContinue()**: manejo de errores: sustitución por flujo alternativo, valor fijo o continúa con los siguientes elementos ignorando el que falló.
 
 ---
 
 ## 5. Backpressure y control de flujo
 
-- **limitRate(n)**: controla la **cantidad de elementos solicitados a la vez**, evitando saturar al consumidor o al sistema. Es esencial en flujos grandes o infinitos.
-- **publishOn(Scheduler)**: cambia el hilo de ejecución a partir de un punto específico del flujo. Todos los operadores que siguen se ejecutan en el Scheduler indicado.
-- **subscribeOn(Scheduler)**: define el hilo en el que se inicia la suscripción y la generación de datos de la fuente. Afecta a todo el flujo desde el inicio.
+- **Principio**: backpressure permite al consumidor controlar la velocidad del productor solicitando `n` elementos a la vez. Sin control, flujos rápidos pueden saturar memoria o hilos.
+
+- **limitRate(n)**: solicita `n` elementos en cada petición de demanda; empuja la velocidad de producción a un ritmo controlado.
+
+- **onBackpressureBuffer(size)**: acumula elementos en buffer cuando la demanda no da abasto (riesgo de memoria si se ignora).
+
+- **onBackpressureDrop() / onBackpressureLatest()**: estrategias de descarte (descartar elementos excedentes o mantener solo el último).
+
+- **publishOn(Scheduler)**: cambia el hilo de ejecución a partir de ese punto en el pipeline. Todos los operadores subsiguientes se ejecutan en ese `Scheduler`.
+
+- **subscribeOn(Scheduler)**: define el hilo donde inicia la suscripción y la generación desde la fuente. Afecta al inicio del flujo.
+
+- **request(n)**: en escenarios avanzados, controlar manualmente la petición de elementos a la `Subscription` para implementar políticas personalizadas.
 
 ---
 
 ## 6. Schedulers en Reactor
 
-- **immediate()**: ejecuta el flujo en el mismo hilo de suscripción, sin crear hilos adicionales. Adecuado para operaciones muy ligeras o testing.
-- **single()**: crea un **único hilo compartido** para flujos que deben ejecutarse de manera secuencial y no paralela.
-- **parallel()**: pool de hilos optimizado para **procesamiento intensivo de CPU**, con tamaño igual al número de núcleos disponibles. Ideal para map/filter pesados.
-- **boundedElastic()**: pool elástico limitado, ideal para operaciones de **IO bloqueante**, como llamadas a bases de datos o servicios externos. Ajusta el número de hilos según demanda pero mantiene un límite seguro.
-- **newSingle()**: crea un hilo dedicado exclusivo para un flujo, útil cuando se necesita secuencialidad absoluta.
-- **fromExecutor(Executor)**: permite usar un `ExecutorService` personalizado como Scheduler, dando control total sobre tamaño de pool, prioridad y manejo de hilos.
+- **immediate()**: ejecuta en el mismo hilo de suscripción. Útil para pruebas o operaciones triviales; peligro de bloqueo si se ejecuta trabajo pesado.
+
+- **single()**: un hilo único compartido. Útil para operaciones que requieren secuencialidad absoluta.
+
+- **parallel()**: pool optimizado para CPU-bound, tamaño por defecto = número de CPU. Ideal para transformaciones pesadas (`map`) y procesamiento concurrente.
+
+- **boundedElastic()**: pool elástico limitado, diseñado para operaciones de I/O bloqueante (acceso a archivos, drivers bloqueantes). Expande hilos según demanda pero con límites para no agotar la JVM.
+
+- **newSingle("name")**: hilo dedicado con nombre, para tareas que deben aislarse.
+
+- **fromExecutor(Executor)**: usar un `ExecutorService` personalizado, para control fino de tamaño y políticas de hilos.
 
 ---
 
 ## 7. Streams de tiempo y eventos
 
-- **Flux.interval(Duration)**: genera un flujo de números secuenciales cada intervalo de tiempo definido, simulando **ticks o eventos periódicos**.
-- **take(n)**: limita las emisiones para flujos que podrían ser infinitos, útil para tests o demos.
-- **Server-Sent Events (SSE)**: mecanismo para enviar un flujo continuo de datos a clientes HTTP de manera reactiva, muy útil en aplicaciones en tiempo real.
+- **Flux.interval(Duration)**: genera secuencia de ticks (0,1,2...) con la periodicidad indicada. Muy útil para simulaciones, polling o generación de eventos periódicos.
+
+- **take(n)**: limitar emisiones en flujos potencialmente infinitos.
+
+- **delayElements(Duration)**: retardar emisiones para modelar latencias.
+
+- **Server-Sent Events (SSE)**: protocolo unidireccional HTTP para que el servidor envíe eventos al cliente continuamente. En WebFlux se devuelve un `Flux` con `MediaType.TEXT_EVENT_STREAM_VALUE`. Fácil de implementar y consumir en navegadores, con reconexión automática simple.
 
 ---
 
-## 8. Integración con servicios y bases de datos
+## 8. Integración con servicios externos: WebClient
 
-- **WebClient**: cliente HTTP **reactivo**, capaz de consumir APIs externas sin bloquear hilos.
-- **R2DBC**: driver reactivo para bases de datos SQL, que permite devolver Mono/Flux directamente y trabajar de manera no bloqueante.
-- **Repositories reactivos**: permiten que los métodos del repositorio devuelvan directamente Mono o Flux, integrando la base de datos en el flujo reactivo.
+- Cliente HTTP reactivo (`WebClient`) reemplaza RestTemplate para pipelines no bloqueantes.
+- Filtros (`ExchangeFilterFunction`) permiten interceptar peticiones/respuestas para logging, cabeceras, tracing o métricas.
+- Soporta manejo de errores, timeout, retry/backoff y fallback.
+- Combinable con flujos internos usando `flatMap`, `zip`, `merge`.
 
 ---
 
 ## 9. Testing reactivo
 
-- **StepVerifier**: herramienta para verificar que Mono o Flux **emite los valores esperados**, se completa correctamente y maneja errores como se espera.
-- Permite testear operadores, manejo de errores, límites de flujo y backpressure de manera **no bloqueante**, asegurando el comportamiento reactivo.
+- **StepVerifier**: valida emisiones esperadas de Mono/Flux, errores y completado.
+- **WebTestClient**: prueba controladores WebFlux sin servidor completo.
+- **VirtualTimeScheduler**: simula tiempo para tests de delay/interval sin retrasos reales.
+- Logging con `flux.log()` y checkpoints para depuración de pipelines complejos.
 
 ---
 
 ## 10. Buenas prácticas
 
-- **Nunca bloquear hilos** en flujos reactivos (evitar llamadas sincrónicas o Thread.sleep()).
-- **Separar operaciones de CPU y IO** usando los Schedulers adecuados.
-- **Manejo de errores** con operadores reactivos (`onErrorResume`, `onErrorContinue`) en lugar de try/catch tradicionales.
-- **Evitar flujos infinitos sin límites o control de backpressure**, para no saturar la aplicación o la JVM.
-- **Logging y debugging**: usar `doOnNext`, `doOnComplete`, `doFinally` para inspeccionar el flujo y detectar problemas de concurrencia.
+- No bloquear hilos.
+- Separar operaciones CPU vs IO.
+- Manejar errores con operadores reactivos.
+- Controlar backpressure.
+- Logging y tracing contextual.
+- Pruebas deterministas con virtual time.
 
 ---
 
+## 11. SSE y WebSockets
 
-## 11. Flujo de tiempo y retrasos
-
-- `Flux.interval(Duration.ofSeconds(1))`: genera emisiones periódicas.
-- `take(n)`: limita el número de emisiones.
-- `doOnNext`: permite logging de cada elemento emitido.
-- `doOnComplete`: permite logging al finalizar.
+- **SSE**: unidireccional, `Flux<T>` → `text/event-stream`.
+- **WebSockets**: bidireccional, usando `WebSocketHandler`, `HandlerMapping` y `WebSocketHandlerAdapter`.
+- Autenticación y control de flujo de mensajes son esenciales en producción.
 
 ---
 
-## 12. WebSockets en Spring WebFlux
+## 12. Bases de datos reactivas
 
-### **Componentes clave**
-1. **WebSocketHandler**
-    - Define la lógica de manejo de mensajes entrantes y salientes.
-    - Ejemplo: transmitir temperaturas cada segundo.
-2. **HandlerMapping**
-    - Asocia URLs de WebSocket con su handler.
-    - Ejemplo: `/ws/temperature` → `TemperatureWebSocketHandler`.
-3. **WebSocketHandlerAdapter**
-    - Permite a Spring WebFlux aceptar y procesar conexiones WebSocket.
-    - Traduce el handshake a un `WebSocketSession` reactivo.
-
-### **Flujo completo**
-- Netty recibe el handshake WebSocket.
-- WebSocketHandlerAdapter traduce la conexión.
-- HandlerMapping encuentra el handler correspondiente.
-- WebSocketHandler maneja la comunicación bidireccional usando `Flux` y `Mono`.
+- **R2DBC**: acceso SQL no bloqueante.
+- **ReactiveMongoRepository**: acceso MongoDB reactivo.
+- Integración con Mono/Flux y transacciones reactivas.
 
 ---
 
+## 13. Kafka reactivo (Reactor Kafka)
 
-## 13. Glosario rápido
+- Productores y consumidores reactivos (`KafkaSender`, `KafkaReceiver`) integrados con `Flux`.
+- Control de backpressure, retries, offsets y DLQ.
+- Integrable con WebFlux, SSE y WebSocket para flujos de eventos.
+- Ideal para arquitecturas 100% non-blocking.
+
+---
+
+## 14. Patrones y resiliencia
+
+- `retryWhen` con backoff.
+- `timeout` y `switchIfEmpty` para fallback.
+- `flatMapSequential` vs `concatMap` para concurrencia + orden.
+- `onErrorContinue` para procesar lotes ignorando fallos puntuales.
+
+---
+
+## 15. Integración completa
+
+- Pipelines combinando IO (WebClient/DB) y CPU (procesamiento) usando Schedulers.
+- Microservicios reactivos end-to-end: Controller → Service → Repository / External Service → Kafka.
+- Observabilidad con metrics, tracing y logging.
+
+---
+
+## 16. Checklist producción
+
+- Versiones compatibles.
+- Monitoreo y alertas.
+- Circuit Breakers / Bulkheads.
+- Configuración de timeouts.
+- Pruebas de carga y control de backpressure.
+- Pools adecuados para boundedElastic y parallel.
+
+---
+
+## 17. Glosario rápido
 
 | Concepto | Descripción |
-|----------|------------|
+|----------|-------------|
 | Mono | Flujo de 0 o 1 elemento |
 | Flux | Flujo de 0 o N elementos |
-| map | Transformación de elementos |
-| flatMap | Transformación y aplanado de flujos internos |
-| then | Ignora valor previo, devuelve Mono de finalización |
-| zip | Combina flujos par a par |
-| merge | Combina flujos concurrentemente |
-| concat | Combina flujos secuencialmente |
-| onErrorResume | Reemplaza un error por un valor alternativo |
-| onErrorContinue | Ignora un error y continúa |
-| switchIfEmpty | Flujo alternativo si no hay elementos |
-| limitRate | Control de backpressure |
-| subscribeOn | Define hilo inicial del flujo |
-| publishOn | Cambia hilo a mitad del flujo |
+| map | Transformación pura de elementos |
+| flatMap | Transformación que aplanan flujos internos |
+| concatMap | Procesamiento secuencial por elemento |
+| flatMapSequential | Concurrencia + preservación de orden |
+| zip | Sincronización par a par |
+| merge | Mezcla concurrente de flujos |
+| combineLatest | Emite cuando cualquiera emite, combinando últimos valores |
+| limitRate | Control de demanda (backpressure) |
+| onBackpressureBuffer / Drop / Latest | Estrategias para exceso de producción |
+| subscribeOn | Define hilo inicial |
+| publishOn | Cambia hilo a mitad del pipeline |
 | boundedElastic | Scheduler para I/O bloqueante |
 | parallel | Scheduler para operaciones CPU-bound |
-| WebSocketHandler | Define lógica de WebSocket |
-| HandlerMapping | Asocia URL con handler |
-| WebSocketHandlerAdapter | Adaptador para manejar WebSocket con Netty |
+| WebClient | Cliente HTTP reactivo |
+| SSE | Server Sent Events, streaming unidireccional |
+| WebSocketHandler | Handler reactivo para WebSocket |
+| HandlerMapping | Mapeo de URL a handlers |
+| WebSocketHandlerAdapter | Adaptador WebFlux para WebSocket |
+| R2DBC | Driver/reactive spec para bases SQL |
+| ReactiveMongoRepository | Repositorios reactivos para MongoDB |
+| Reactor Kafka | Cliente Kafka reactivo para producir/consumir |
 
 ---
+
+## 18. Referencias tecnológicas
+
+- :contentReference[oaicite:0]{index=0}
+- :contentReference[oaicite:1]{index=1}
+- :contentReference[oaicite:2]{index=2}
+- :contentReference[oaicite:3]{index=3}
+- :contentReference[oaicite:4]{index=4}
+- :contentReference[oaicite:5]{index=5}
+- :contentReference[oaicite:6]{index=6}  
